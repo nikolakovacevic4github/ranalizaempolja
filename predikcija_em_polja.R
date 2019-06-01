@@ -11,6 +11,8 @@ library(sqldf)
 library(data.table)
 library(sp)
 library(rgdal)
+library(tidyr)
+library(data.table)
 
 
 ### podesavanje radnog direktorijuma 
@@ -26,10 +28,14 @@ setwd(data_dir)
 csvFiles <- unlist(lapply(data_dir, function(dir) list.files(path = dir, pattern = '\\.csv$')))
 
 ### objedinjavanje svih podataka (iz svih .csv fajlova) tekuceg direktorijuma u jedan dataset 
-#df <- data.frame() #rezultujuci dataset 
+
+df.lista.obdanica <- list()
+df.lista.noc <- list()
+i <- 1
 for(f in csvFiles){
+
   ### iscitati metapodatke (header) iz .csv fajla
-  header <- read.csv(f, nrows = 6, header=FALSE, sep=",", encoding = "UTF-8")
+  header <- read.csv(f, nrows = 7, header=FALSE, sep=",", encoding = "UTF-8")
   
   ### trasponovati metapodatke (header) i preurediti imenovanje metapodataka
   metadata <- transpose(header)
@@ -60,24 +66,89 @@ for(f in csvFiles){
   data$LON <- rep(lon, m)
   data$LAT <- rep(lat, m)
   
+  #custovanje faktor tipa u kolone koje sadrze datum i vreme (odvojeno)
+  data$DATUM_VREME <- strptime(data$DATUM_VREME , format = "%Y-%m-%d %H:%M:%S")
+  data$DATUM <- as.Date(data$DATUM_VREME , format = "%Y-%m-%d")
+  data$SAT <- as.integer(strftime(data$DATUM_VREME, format = "%H"))
+  
   #uklanjanje suvisnih kolona
-  data <- data[, setdiff(names(data), c("RBR"))]
+  #data <- data[, setdiff(names(data), c("RBR"))]
   
-  #uniranje svih podataka u jedan dataset 
-  #df <- merge(df, data, all=TRUE)
+  #izdvojiti samo neke kolone
+  data <- subset(data, select=c("ID_STANICE", "LON", "LAT", "DATUM", "SAT","VREDNOST_POLJA", "TEMPERATURA", "VLAZNOST"))
   
-  # kreranje SpatialDataFrame objekta od DataFrame objekta
-  coordinates(data) <- c("LON", "LAT")
-  proj4string(data) <- CRS("+proj=longlat +datum=WGS84 +no_defs")
+  #uklanjanje eventualnih NA vrednosti
+  data <- data[ which( !(is.na(data$ID_STANICE))),]
+  data <- data[ which( !(is.na(data$LON))),]
+  data <- data[ which( !(is.na(data$LAT))),]
+  data <- data[ which( !(is.na(data$DATUM))),]
+  data <- data[ which( !(is.na(data$SAT))),]
+  data <- data[ which( !(is.na(data$VREDNOST_POLJA))),]
+  data <- data[ which( !(is.na(data$TEMPERATURA))),]
+  data <- data[ which( !(is.na(data$VLAZNOST))),]
   
-  #export dataset-a u .shp
-  #writeOGR(data, "shp_dataset", paste(metadata$LOKACIJA, "dataset", sep = "_"), driver="ESRI Shapefile")
-  writeOGR(data, "shp_dataset", metadata$LOKACIJA, driver="ESRI Shapefile")
+  #dodavanje atribuda doba daba
+  #data.obdanica <- subset(data, data$SAT >= 6 && data$SAT <= 18)
+  data.obdanica <- data[which(data$SAT >= 6 & data$SAT <= 18), ]
+  data.noc <- data[which(data$SAT < 6 | data$SAT > 18), ]
+  
+  #uklanjanje suvisnih kolona
+  data.obdanica <- data.obdanica[, setdiff(names(data.obdanica), c("SAT"))]
+  data.noc  <- data.noc [, setdiff(names(data.noc ), c("SAT"))]
+  
+  #agregacija na nivou doba dana i datuma za odredjenu stanicu
+  data.obdanica.agrgirano_po_datumu <- aggregate(.~ID_STANICE+LON+LAT+DATUM, data=data.obdanica, mean, na.rm=TRUE)
+  df.lista.obdanica[[i]] <- data.obdanica.agrgirano_po_datumu
+  
+  data.noc.agrgirano_po_datumu <- aggregate(.~ID_STANICE+LON+LAT+DATUM, data=data.noc, mean, na.rm=TRUE)
+  df.lista.noc[[i]] <- data.noc.agrgirano_po_datumu
+  i <- i + 1
+  
+}
+
+#objedinjeni df sa svim podacima po dobu dana
+df.obdanica <- do.call(rbind, df.lista.obdanica)
+df.noc <- do.call(rbind, df.lista.noc)
+
+#svih datumi u kojima su se realizovala neka merenja
+datumi <-  unique(c(df.obdanica$DATUM, df.noc$DATUM))
+
+#kreiranje novog direktorijuma ukoliko vec ne postoji
+subDir<- "sredjeni_ulazni_podaci"
+ifelse(!dir.exists(file.path(data_dir, subDir)), dir.create(file.path(data_dir, subDir)), FALSE)
+setwd(file.path(data_dir, subDir))
+
+for(d in datumi){
+  
+  #izvajanje podataka za odredjeni datum
+  tmp.df.obdanica <- df.obdanica[which(df.obdanica$DATUM == d), ]
+  tmp.df.noc <- df.noc[which(df.noc$DATUM == d), ]
+  
+  # kreranje SpatialDataFrame
+  coordinates(tmp.df.obdanica) <- c("LON", "LAT")
+  proj4string(tmp.df.obdanica) <- CRS("+proj=longlat +datum=WGS84 +no_defs")
+  
+  coordinates(tmp.df.noc) <- c("LON", "LAT")
+  proj4string(tmp.df.noc) <- CRS("+proj=longlat +datum=WGS84 +no_defs")
+  
+  #eksport podataka u .shp
+  writeOGR(tmp.df.obdanica, as.character(unique(tmp.df.obdanica$DATUM)), paste(toString(unique(tmp.df.obdanica$DATUM)), "obdanica", sep = "_"), driver="ESRI Shapefile")
+  writeOGR(tmp.df.noc, as.character(unique(tmp.df.noc$DATUM)), paste(toString(unique(tmp.df.noc$DATUM)), "noc", sep = "_"), driver="ESRI Shapefile")
   
 }
 
 
+###################################################################################################################
 
+# kreranje SpatialDataFrame objekta od DataFrame objekta
+#coordinates(data) <- c("LON", "LAT")
+#proj4string(data) <- CRS("+proj=longlat +datum=WGS84 +no_defs")
+
+#export source dataset-a to .shp
+#writeOGR(data, "source_data", paste(metadata$LOKACIJA, "source", sep = "_"), driver="ESRI Shapefile")
+
+#export aggregated data to .shp
+#writeOGR(data, "aggreagted_data",  paste(metadata$LOKACIJA, "aggregated", sep = "_"), driver="ESRI Shapefile")
 
 
 
