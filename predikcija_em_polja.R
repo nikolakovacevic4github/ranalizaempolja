@@ -29,6 +29,7 @@ csvFiles <- unlist(lapply(data_dir, function(dir) list.files(path = dir, pattern
 
 ### objedinjavanje svih podataka (iz svih .csv fajlova) tekuceg direktorijuma u jedan dataset 
 
+df.lista <- list()
 df.lista.obdanica <- list()
 df.lista.noc <- list()
 i <- 1
@@ -88,13 +89,15 @@ for(f in csvFiles){
   data <- data[ which( !(is.na(data$VLAZNOST))),]
   
   #dodavanje atribuda doba daba
-  #data.obdanica <- subset(data, data$SAT >= 6 && data$SAT <= 18)
   data.obdanica <- data[which(data$SAT >= 6 & data$SAT <= 18), ]
   data.noc <- data[which(data$SAT < 6 | data$SAT > 18), ]
   
   #uklanjanje suvisnih kolona
   data.obdanica <- data.obdanica[, setdiff(names(data.obdanica), c("SAT"))]
   data.noc  <- data.noc [, setdiff(names(data.noc ), c("SAT"))]
+  
+  #pakovanje podataka za ekstrakciju jednog seta sa svim podacima
+  df.lista[[i]] <- data
   
   #agregacija na nivou doba dana i datuma za odredjenu stanicu
   data.obdanica.agrgirano_po_datumu <- aggregate(.~ID_STANICE+LON+LAT+DATUM, data=data.obdanica, mean, na.rm=TRUE)
@@ -106,7 +109,7 @@ for(f in csvFiles){
   
 }
 
-#objedinjeni df sa svim podacima po dobu dana
+##objedinjeni df sa svim podacima po dobu dana
 df.obdanica <- do.call(rbind, df.lista.obdanica)
 df.noc <- do.call(rbind, df.lista.noc)
 
@@ -114,9 +117,10 @@ df.noc <- do.call(rbind, df.lista.noc)
 datumi <-  unique(c(df.obdanica$DATUM, df.noc$DATUM))
 
 #kreiranje novog direktorijuma ukoliko vec ne postoji
-subDir<- "sredjeni_ulazni_podaci"
+subDir<- "ulazni-podaci-sredjeno"
 ifelse(!dir.exists(file.path(data_dir, subDir)), dir.create(file.path(data_dir, subDir)), FALSE)
 setwd(file.path(data_dir, subDir))
+
 
 for(d in datumi){
   
@@ -132,23 +136,22 @@ for(d in datumi){
   proj4string(tmp.df.noc) <- CRS("+proj=longlat +datum=WGS84 +no_defs")
   
   #eksport podataka u .shp
-  writeOGR(tmp.df.obdanica, as.character(unique(tmp.df.obdanica$DATUM)), paste(toString(unique(tmp.df.obdanica$DATUM)), "obdanica", sep = "_"), driver="ESRI Shapefile")
-  writeOGR(tmp.df.noc, as.character(unique(tmp.df.noc$DATUM)), paste(toString(unique(tmp.df.noc$DATUM)), "noc", sep = "_"), driver="ESRI Shapefile")
+  writeOGR(tmp.df.obdanica, as.character(unique(tmp.df.obdanica$DATUM)), paste(toString(unique(tmp.df.obdanica$DATUM)), "obdanica", sep = "-"), driver="ESRI Shapefile")
+  writeOGR(tmp.df.noc, as.character(unique(tmp.df.noc$DATUM)), paste(toString(unique(tmp.df.noc$DATUM)), "noc", sep = "-"), driver="ESRI Shapefile")
   
 }
 
 
-###################################################################################################################
+#objedinjeni podaci 
+df.data <- do.call(rbind, df.lista)
 
-# kreranje SpatialDataFrame objekta od DataFrame objekta
-#coordinates(data) <- c("LON", "LAT")
-#proj4string(data) <- CRS("+proj=longlat +datum=WGS84 +no_defs")
+# kreranje SpatialDataFrame
+coordinates(df.data) <- c("LON", "LAT")
+proj4string(df.data) <- CRS("+proj=longlat +datum=WGS84 +no_defs")
 
-#export source dataset-a to .shp
-#writeOGR(data, "source_data", paste(metadata$LOKACIJA, "source", sep = "_"), driver="ESRI Shapefile")
+#eksport podataka u .shp
+writeOGR(df.data, "objedinjeni-podaci", "stanice-svi-podaci", driver="ESRI Shapefile")
 
-#export aggregated data to .shp
-#writeOGR(data, "aggreagted_data",  paste(metadata$LOKACIJA, "aggregated", sep = "_"), driver="ESRI Shapefile")
 
 
 
