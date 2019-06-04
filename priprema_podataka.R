@@ -149,6 +149,10 @@ df.data <- do.call(rbind, df.lista)
 coordinates(df.data) <- c("LON", "LAT")
 proj4string(df.data) <- CRS("+proj=longlat +datum=WGS84 +no_defs")
 
+#eksport podataka u data direktorijumu
+data_dir <- "D:/DataScience/Projects/working_dir/data"
+setwd(data_dir)
+
 #eksport podataka u .shp
 writeOGR(df.data, "objedinjeni-podaci", "stanice-svi-podaci", driver="ESRI Shapefile")
 
