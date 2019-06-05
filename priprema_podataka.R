@@ -13,6 +13,7 @@ library(sp)
 library(rgdal)
 library(tidyr)
 library(data.table)
+library(raster)
 
 
 ### podesavanje radnog direktorijuma 
