@@ -1,7 +1,4 @@
-# Kreirao: Milic Stevan
-# Datum: 04.6.2019.
-
-# Opis: Analiza merenja i prostrna regresija
+# Opis: Prostorna predikcija
 
 rm(list=ls(all=TRUE))
 
@@ -46,6 +43,10 @@ names(ulazni_podaci)
 #summary(lm.Regresioni_model)
 # residuals(lm.Regresioni_model)
 
+# Objekat fitovanja - glm()
+m1 <- glm(VREDNOST_P ~ TEMPERATUR + VLAZNOST_M, data = ulazni_podaci@data)
+summary(m1)
+
 #listanje svih direktorijuma sa podacima
 dirs <- list.dirs(prediktori.putanja, recursive = TRUE)
 
@@ -74,16 +75,11 @@ for(i in 2:length(dirs)){
   Prediktori.ov$VLAZNOST_M<- readGDAL(r2)$band1
   #names(Prediktori.ov) <- c("VLAZNOST_M");
   
-  
   #kreiranje RasterLayer objekta
   prediktori <- stack(Prediktori.ov)
   #class(prediktori) #klasa "raster"
   
   names(prediktori)
-  
-  # Objekat fitovanja - glm()
-  m1 <- glm(VREDNOST_P ~ TEMPERATUR + VLAZNOST_M, data = ulazni_podaci@data)
-  summary(m1)
   
   predikcija.raster <- predict(prediktori, m1)
   #class(predikcija.raster)
@@ -93,7 +89,6 @@ for(i in 2:length(dirs)){
   
 }
 #kraj petlje
-
 
 #kraj izvrsavanja
 proc.time() - ptm

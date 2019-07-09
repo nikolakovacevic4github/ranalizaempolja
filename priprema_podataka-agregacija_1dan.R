@@ -1,6 +1,3 @@
-# Kreirao: Milic Stevan
-# Datum: 17.5.2019.
-
 # Opis: Istrazivanje (testiranje) zavisnosti u podacima
 
 rm(list=ls(all=TRUE))
@@ -265,13 +262,14 @@ subDir<- "ulazni-podaci-sredjeno_1dan"
 ifelse(!dir.exists(file.path(data_dir, subDir)), dir.create(file.path(data_dir, subDir)), FALSE)
 setwd(file.path(data_dir, subDir))
 
-AdmTeritory <- readOGR(dsn = "D:\\DataScience\\Projects\\working_dir\\data\\SerbiaTeritory-boundary", "SRB_adm0")
+#AdmTeritory <- readOGR(dsn = "D:\\DataScience\\Projects\\working_dir\\data\\SerbiaTeritory-boundary", "SRB_adm0")
+AdmTeritory <- readOGR(dsn = "D:\\DataScience\\Projects\\working_dir\\data\\SerbiaTeritory-boundary", "Grad_Beograd_poligon")
 
 #test datum
-d = datumi[1]
+#d = datumi[1]
 
 #citanje podataka po datumima
-#for(d in datumi){
+for(d in datumi){
 
   #izvajanje podataka za odredjeni datum
   tmp.df <- df.merged.out[which(df.merged.out$DATUM == d), ]
@@ -344,7 +342,7 @@ d = datumi[1]
   writeRaster(tmp.df.idw.raster.TEMP, paste0( as.character(unique(tmp.df$DATUM)), "/", paste(toString(unique(tmp.df$DATUM)), "TEMP", sep = "-") ), format="GTiff", overwrite=TRUE)
   writeRaster(tmp.df.idw.raster.VLAZ, paste0( as.character(unique(tmp.df$DATUM)), "/", paste(toString(unique(tmp.df$DATUM)), "VLAZ", sep = "-") ), format="GTiff", overwrite=TRUE)
   
-#}
+}
 #kraj petlje
 
 
